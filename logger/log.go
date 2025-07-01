@@ -12,10 +12,11 @@ import (
 )
 
 var Logger *logrus.Logger
-var debug = true // 控制是否输出到控制台
+var debug = false // 控制是否输出到控制台
 func init() {
+	debug = os.Getenv("LOGDEBUG") != ""
 	logs := logrus.New()
-
+	logs.SetReportCaller(true)
 	// 创建日志目录
 	if err := os.MkdirAll("./logs", 0755); err != nil {
 		logrus.Fatal("Failed to create log directory:", err)
