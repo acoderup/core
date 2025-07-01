@@ -1,6 +1,6 @@
 module github.com/acoderup/core
 
-go 1.24.4
+go 1.24.0
 
 require (
 	github.com/lestrrat-go/file-rotatelogs v2.4.0+incompatible
