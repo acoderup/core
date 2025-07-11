@@ -27,7 +27,7 @@ func (trc *taskReqCommand) Done(o *basic.Object) error {
 	if trc.g == "" {
 		workerName, err = TaskExecutor.c.Get(trc.n)
 		if err != nil {
-			logger.Logger.Debug("taskReqCommand done error:", err)
+			logger.Logger.Trace("taskReqCommand done error:", err)
 			return err
 		}
 		worker = TaskExecutor.getWorker(workerName)
@@ -35,7 +35,7 @@ func (trc *taskReqCommand) Done(o *basic.Object) error {
 		if wg, exist := TaskExecutor.getGroup(trc.g); wg != nil && exist {
 			workerName, err = wg.c.Get(trc.n)
 			if err != nil {
-				logger.Logger.Debug("taskReqCommand done error:", err)
+				logger.Logger.Trace("taskReqCommand done error:", err)
 				return err
 			}
 			worker = wg.getWorker(workerName)
@@ -44,7 +44,7 @@ func (trc *taskReqCommand) Done(o *basic.Object) error {
 			if wg != nil {
 				workerName, err = wg.c.Get(trc.n)
 				if err != nil {
-					logger.Logger.Debug("taskReqCommand done error:", err)
+					logger.Logger.Trace("taskReqCommand done error:", err)
 					return err
 				}
 				worker = wg.getWorker(workerName)
@@ -52,16 +52,16 @@ func (trc *taskReqCommand) Done(o *basic.Object) error {
 		}
 	}
 	if worker != nil {
-		logger.Logger.Debug("task[", trc.n, "] dispatch-> worker[", workerName, "]")
+		logger.Logger.Trace("task[", trc.n, "] dispatch-> worker[", workerName, "]")
 		ste := SendTaskExe(worker.Object, trc.t)
 		if ste == true {
-			logger.Logger.Debug("SendTaskExe success.")
+			logger.Logger.Trace("SendTaskExe success.")
 		} else {
-			logger.Logger.Debug("SendTaskExe failed.")
+			logger.Logger.Trace("SendTaskExe failed.")
 		}
 		return nil
 	} else {
-		logger.Logger.Debugf("[%v] worker is no found.", workerName)
+		logger.Logger.Tracef("[%v] worker is no found.", workerName)
 		return TaskErr_CannotFindWorker
 	}
 
@@ -69,7 +69,7 @@ func (trc *taskReqCommand) Done(o *basic.Object) error {
 
 func sendTaskReqToExecutor(t Task, name string, gname string) bool {
 	if t == nil {
-		logger.Logger.Debug("sendTaskReqToExecutor error,t is nil")
+		logger.Logger.Trace("sendTaskReqToExecutor error,t is nil")
 		return false
 	}
 	if t.getN() != nil && t.getS() == nil {
@@ -112,16 +112,16 @@ func (trc *fixTaskReqCommand) Done(o *basic.Object) error {
 	}
 
 	if worker != nil {
-		logger.Logger.Debug("task[", trc.n, "] dispatch-> worker[", trc.n, "]")
+		logger.Logger.Trace("task[", trc.n, "] dispatch-> worker[", trc.n, "]")
 		ste := SendTaskExe(worker.Object, trc.t)
 		if ste == true {
-			logger.Logger.Debug("SendTaskExe success.")
+			logger.Logger.Trace("SendTaskExe success.")
 		} else {
-			logger.Logger.Debug("SendTaskExe failed.")
+			logger.Logger.Trace("SendTaskExe failed.")
 		}
 		return nil
 	} else {
-		logger.Logger.Debugf("[%v] worker is no found.", trc.n)
+		logger.Logger.Tracef("[%v] worker is no found.", trc.n)
 		return TaskErr_CannotFindWorker
 	}
 }

@@ -23,7 +23,7 @@ func (w *Waitor) Add(name string, delta int) {
 		panic("negative Waitor counter")
 	}
 	cnt := atomic.LoadInt32(&w.counter)
-	logger.Logger.Debugf("(w *Waitor)(%v:%p) Add(%v,%v) counter(%v)", w.name, w, name, delta, cnt)
+	logger.Logger.Tracef("(w *Waitor)(%v:%p) Add(%v,%v) counter(%v)", w.name, w, name, delta, cnt)
 }
 
 func (w *Waitor) Wait(name string) {
@@ -32,16 +32,16 @@ func (w *Waitor) Wait(name string) {
 		panic("only support one waitor")
 	}
 	cnt := atomic.LoadInt32(&w.waiters)
-	logger.Logger.Debugf("(w *Waitor)(%v:%p) Waiter(%v) waiters(%v)", w.name, w, name, cnt)
+	logger.Logger.Tracef("(w *Waitor)(%v:%p) Waiter(%v) waiters(%v)", w.name, w, name, cnt)
 	for w.counter > 0 {
 		dname := <-w.c
 		v = atomic.AddInt32(&w.counter, -1)
 		cnt = atomic.LoadInt32(&w.counter)
-		logger.Logger.Debugf("(w *Waitor)(%v:%p) Waiter(%v) after(%v)done! counter(%v)", w.name, w, name, dname, cnt)
+		logger.Logger.Tracef("(w *Waitor)(%v:%p) Waiter(%v) after(%v)done! counter(%v)", w.name, w, name, dname, cnt)
 	}
 }
 
 func (w *Waitor) Done(name string) {
 	w.c <- name
-	logger.Logger.Debugf("(w *Waitor)(%v:%p) Done(%v)!!!", w.name, w, name)
+	logger.Logger.Tracef("(w *Waitor)(%v:%p) Done(%v)!!!", w.name, w, name)
 }

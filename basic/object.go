@@ -182,7 +182,7 @@ func (o *Object) ProcessSeqnum() {
 // If so, deallocate this object.
 func (o *Object) checkTermAcks() {
 	name := o.GetTreeName()
-	logger.Logger.Debugf("(%v) object checkTermAcks terminating=%v processedSeqnum=%v sentSeqnum=%v termAcks=%v ", name, o.terminating, o.processedSeqnum, o.sentSeqnum, o.termAcks)
+	logger.Logger.Tracef("(%v) object checkTermAcks terminating=%v processedSeqnum=%v sentSeqnum=%v termAcks=%v ", name, o.terminating, o.processedSeqnum, o.sentSeqnum, o.termAcks)
 	if o.terminating && o.processedSeqnum == o.sentSeqnum && o.termAcks == 0 {
 
 		//  Sanity check. There should be no active children at this point.
@@ -190,7 +190,7 @@ func (o *Object) checkTermAcks() {
 		//  The root object has nobody to confirm the termination to.
 		//  Other nodes will confirm the termination to the owner.
 		if o.owner != nil {
-			logger.Logger.Debugf("(%v)->(%v) Object SendTermAck ", o.Name, o.owner.Name)
+			logger.Logger.Tracef("(%v)->(%v) Object SendTermAck ", o.Name, o.owner.Name)
 			SendTermAck(o.owner)
 		}
 
@@ -210,7 +210,7 @@ func (o *Object) Terminate(s *Object) {
 	}
 
 	name := o.GetTreeName()
-	logger.Logger.Debugf("(%v) object Terminate ", name)
+	logger.Logger.Tracef("(%v) object Terminate ", name)
 	//  As for the root of the ownership tree, there's noone to terminate it,
 	//  so it has to terminate itself.
 	if o.owner == nil {
@@ -243,7 +243,7 @@ func (o *Object) processTerm() {
 	o.termAcks += cnt
 
 	name := o.GetTreeName()
-	logger.Logger.Debugf("(%v) object processTerm, termAcks=%v", name, o.termAcks)
+	logger.Logger.Tracef("(%v) object processTerm, termAcks=%v", name, o.termAcks)
 
 	o.safeStop()
 	//  Start termination process and check whether by chance we cannot
@@ -256,7 +256,7 @@ func (o *Object) processTerm() {
 // is to be delayed.
 func (o *Object) processDestroy() {
 	name := o.GetTreeName()
-	logger.Logger.Debugf("(%v) object processDestroy ", name)
+	logger.Logger.Tracef("(%v) object processDestroy ", name)
 	o.terminated = true
 	//clear ols
 	o.OlsClrValue()
@@ -306,14 +306,14 @@ func (o *Object) ProcessCommand() {
 	}
 
 	name := o.GetTreeName()
-	logger.Logger.Debug("(", name, ") object active!!!")
+	logger.Logger.Trace("(", name, ") object active!!!")
 	doneCnt := 0
 	for !o.terminated {
 		cnt := o.GetPendingCommandCnt()
 		if cnt == 0 {
 			if tickMode {
 				if o.cond.WaitForTick(o.timer) {
-					//logger.Logger.Debug("(", name, ") object safeTick 1 ", time.Now())
+					//logger.Logger.Trace("(", name, ") object safeTick 1 ", time.Now())
 					o.safeTick()
 					doneCnt = 0
 					continue
@@ -340,7 +340,7 @@ func (o *Object) ProcessCommand() {
 		if tickMode {
 			select {
 			case <-o.timer.C:
-				//logger.Logger.Debug("(", name, ") object safeTick 2 ", time.Now())
+				//logger.Logger.Trace("(", name, ") object safeTick 2 ", time.Now())
 				o.safeTick()
 				doneCnt = 0
 			default:
@@ -356,7 +356,7 @@ func (o *Object) ProcessCommand() {
 	}
 
 	cnt := o.GetPendingCommandCnt()
-	logger.Logger.Debug("(", name, ") object ProcessCommand done!!! queue rest cmd count(", cnt, ") ")
+	logger.Logger.Trace("(", name, ") object ProcessCommand done!!! queue rest cmd count(", cnt, ") ")
 }
 
 func (o *Object) safeDone(cmd Command) {
