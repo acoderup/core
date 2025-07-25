@@ -11,8 +11,9 @@ import (
 
 // customHook 自定义hook处理所有日志输出
 type customHook struct {
-	fileWriter io.Writer
-	debug      bool
+	fileWriter      io.Writer
+	errorFileWriter io.Writer
+	debug           bool
 }
 
 func (h *customHook) Fire(entry *logrus.Entry) error {
@@ -26,6 +27,10 @@ func (h *customHook) Fire(entry *logrus.Entry) error {
 	}
 	if jsonData, err := jsonFormatter.Format(entry); err == nil {
 		h.fileWriter.Write(jsonData)
+		// 2. 如果是错误级别，额外写入错误日志文件
+		if entry.Level <= logrus.ErrorLevel {
+			_, _ = h.errorFileWriter.Write(jsonData)
+		}
 	}
 
 	// 控制台输出 - 彩色文本格式(仅在debug模式下)

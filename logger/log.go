@@ -25,6 +25,8 @@ func init() {
 	// 配置日志文件路径
 	logFile := "./logs/app.log"
 
+	errorLogFile := "./logs/error.log"
+
 	// 如果日志文件已存在
 	if _, err := os.Stat(logFile); err == nil {
 		// 首先检查并清理旧的备份文件
@@ -35,12 +37,16 @@ func init() {
 
 		// 收集所有备份文件
 		var backupFiles []string
+		var backupFilesError []string
 		for _, file := range files {
 			if file.IsDir() {
 				continue
 			}
 			if matched, _ := filepath.Match("app_*.log", file.Name()); matched {
 				backupFiles = append(backupFiles, file.Name())
+			}
+			if matched, _ := filepath.Match("error_*.log", file.Name()); matched {
+				backupFilesError = append(backupFilesError, file.Name())
 			}
 		}
 
@@ -53,9 +59,20 @@ func init() {
 				return info1.ModTime().Before(info2.ModTime())
 			})
 
+			sort.Slice(backupFilesError, func(i, j int) bool {
+				info1, _ := os.Stat(filepath.Join("./logs", backupFilesError[i]))
+				info2, _ := os.Stat(filepath.Join("./logs", backupFilesError[j]))
+				return info1.ModTime().Before(info2.ModTime())
+			})
+
 			// 删除最旧的文件，只保留最新的3个
 			for i := 0; i < len(backupFiles)-2; i++ {
 				if err := os.Remove(filepath.Join("./logs", backupFiles[i])); err != nil {
+					logrus.Warnf("删除旧备份文件失败: %v", err)
+				}
+			}
+			for i := 0; i < len(backupFilesError)-2; i++ {
+				if err := os.Remove(filepath.Join("./logs", backupFilesError[i])); err != nil {
 					logrus.Warnf("删除旧备份文件失败: %v", err)
 				}
 			}
@@ -64,6 +81,10 @@ func init() {
 		// 创建新的备份
 		backupFile := fmt.Sprintf("./logs/app_%s.log", time.Now().Format("20060102_150405"))
 		if err := os.Rename(logFile, backupFile); err != nil {
+			logrus.Fatalf("日志备份失败: %v", err)
+		}
+		backupFileError := fmt.Sprintf("./logs/error_%s.log", time.Now().Format("20060102_150405"))
+		if err := os.Rename(errorLogFile, backupFileError); err != nil {
 			logrus.Fatalf("日志备份失败: %v", err)
 		}
 	}
@@ -76,14 +97,22 @@ func init() {
 		MaxAge:     30,
 		Compress:   true,
 	}
+	errorFileWriter := &lumberjack.Logger{
+		Filename:   errorLogFile,
+		MaxSize:    100,
+		MaxBackups: 3,
+		MaxAge:     30,
+		Compress:   true,
+	}
 
 	// 完全禁用logrus默认输出
 	logs.SetOutput(io.Discard)
 
 	// 添加自定义hook处理所有输出
 	logs.AddHook(&customHook{
-		fileWriter: fileWriter,
-		debug:      debug,
+		fileWriter:      fileWriter,
+		errorFileWriter: errorFileWriter,
+		debug:           debug,
 	})
 
 	Logger = logs
