@@ -12,98 +12,30 @@ import (
 )
 
 var Logger *logrus.Logger
-var debug = false // 控制是否输出到控制台
+var debug = false
+
 func init() {
 	debug = os.Getenv("LOGDEBUG") != ""
 	logs := logrus.New()
 	logs.SetReportCaller(true)
+
 	// 创建日志目录
-	if err := os.MkdirAll("./logs", 0755); err != nil {
-		logrus.Fatal("Failed to create log directory:", err)
+	if err := ensureLogDirectory(); err != nil {
+		logrus.Fatalf("无法创建日志目录: %v", err)
 	}
 
 	// 配置日志文件路径
 	logFile := "./logs/app.log"
-
 	errorLogFile := "./logs/error.log"
 
-	// 如果日志文件已存在
-	if _, err := os.Stat(logFile); err == nil {
-		// 首先检查并清理旧的备份文件
-		files, err := os.ReadDir("./logs")
-		if err != nil {
-			logrus.Fatalf("读取日志目录失败: %v", err)
-		}
-
-		// 收集所有备份文件
-		var backupFiles []string
-		var backupFilesError []string
-		for _, file := range files {
-			if file.IsDir() {
-				continue
-			}
-			if matched, _ := filepath.Match("app_*.log", file.Name()); matched {
-				backupFiles = append(backupFiles, file.Name())
-			}
-			if matched, _ := filepath.Match("error_*.log", file.Name()); matched {
-				backupFilesError = append(backupFilesError, file.Name())
-			}
-		}
-
-		// 如果备份文件超过3个，按修改时间排序并删除最旧的
-		if len(backupFiles) >= 3 {
-			// 按修改时间排序
-			sort.Slice(backupFiles, func(i, j int) bool {
-				info1, _ := os.Stat(filepath.Join("./logs", backupFiles[i]))
-				info2, _ := os.Stat(filepath.Join("./logs", backupFiles[j]))
-				return info1.ModTime().Before(info2.ModTime())
-			})
-
-			sort.Slice(backupFilesError, func(i, j int) bool {
-				info1, _ := os.Stat(filepath.Join("./logs", backupFilesError[i]))
-				info2, _ := os.Stat(filepath.Join("./logs", backupFilesError[j]))
-				return info1.ModTime().Before(info2.ModTime())
-			})
-
-			// 删除最旧的文件，只保留最新的3个
-			for i := 0; i < len(backupFiles)-2; i++ {
-				if err := os.Remove(filepath.Join("./logs", backupFiles[i])); err != nil {
-					logrus.Warnf("删除旧备份文件失败: %v", err)
-				}
-			}
-			for i := 0; i < len(backupFilesError)-2; i++ {
-				if err := os.Remove(filepath.Join("./logs", backupFilesError[i])); err != nil {
-					logrus.Warnf("删除旧备份文件失败: %v", err)
-				}
-			}
-		}
-
-		// 创建新的备份
-		backupFile := fmt.Sprintf("./logs/app_%s.log", time.Now().Format("20060102_150405"))
-		if err := os.Rename(logFile, backupFile); err != nil {
-			logrus.Fatalf("日志备份失败: %v", err)
-		}
-		backupFileError := fmt.Sprintf("./logs/error_%s.log", time.Now().Format("20060102_150405"))
-		if err := os.Rename(errorLogFile, backupFileError); err != nil {
-			logrus.Fatalf("日志备份失败: %v", err)
-		}
+	// 处理日志文件备份
+	if err := handleLogBackups(logFile, errorLogFile); err != nil {
+		logrus.Fatalf("日志备份处理失败: %v", err)
 	}
 
 	// 配置日志轮转
-	fileWriter := &lumberjack.Logger{
-		Filename:   logFile,
-		MaxSize:    100,
-		MaxBackups: 3,
-		MaxAge:     30,
-		Compress:   true,
-	}
-	errorFileWriter := &lumberjack.Logger{
-		Filename:   errorLogFile,
-		MaxSize:    100,
-		MaxBackups: 3,
-		MaxAge:     30,
-		Compress:   true,
-	}
+	fileWriter := newLogWriter(logFile)
+	errorFileWriter := newLogWriter(errorLogFile)
 
 	// 完全禁用logrus默认输出
 	logs.SetOutput(io.Discard)
@@ -116,4 +48,115 @@ func init() {
 	})
 
 	Logger = logs
+}
+
+// ensureLogDirectory 确保日志目录存在
+func ensureLogDirectory() error {
+	return os.MkdirAll("./logs", 0755)
+}
+
+// newLogWriter 创建新的日志写入器
+func newLogWriter(filename string) *lumberjack.Logger {
+	return &lumberjack.Logger{
+		Filename:   filename,
+		MaxSize:    100, // MB
+		MaxBackups: 3,
+		MaxAge:     30, // 天
+		Compress:   true,
+	}
+}
+
+// handleLogBackups 处理日志文件备份
+func handleLogBackups(logFile, errorLogFile string) error {
+	nowTime := time.Now()
+	// 备份主日志文件
+	if err := backupIfExists(nowTime, logFile, "app"); err != nil {
+		return err
+	}
+
+	// 备份错误日志文件
+	if err := backupIfExists(nowTime, errorLogFile, "error"); err != nil {
+		return err
+	}
+
+	// 清理旧备份文件
+	return cleanOldBackups()
+}
+
+// backupIfExists 如果文件存在则进行备份
+func backupIfExists(nowTime time.Time, filePath, prefix string) error {
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		return nil
+	}
+
+	backupFile := fmt.Sprintf("./logs/%s_%s.log", prefix, nowTime.Format("20060102_150405"))
+	if err := os.Rename(filePath, backupFile); err != nil {
+		return fmt.Errorf("无法备份文件 %s: %v", filePath, err)
+	}
+	return nil
+}
+
+// cleanOldBackups 清理旧的备份文件
+func cleanOldBackups() error {
+	files, err := os.ReadDir("./logs")
+	if err != nil {
+		return fmt.Errorf("无法读取日志目录: %v", err)
+	}
+
+	// 分类收集备份文件
+	var appBackups, errorBackups []backupFileInfo
+
+	for _, file := range files {
+		if file.IsDir() {
+			continue
+		}
+
+		info, err := file.Info()
+		if err != nil {
+			logrus.Warnf("无法获取文件信息 %s: %v", file.Name(), err)
+			continue
+		}
+
+		if matched, _ := filepath.Match("app_*.log", file.Name()); matched {
+			appBackups = append(appBackups, backupFileInfo{name: file.Name(), modTime: info.ModTime()})
+		} else if matched, _ := filepath.Match("error_*.log", file.Name()); matched {
+			errorBackups = append(errorBackups, backupFileInfo{name: file.Name(), modTime: info.ModTime()})
+		}
+	}
+
+	// 清理旧备份
+	if err := cleanBackupGroup(appBackups, "应用日志"); err != nil {
+		return err
+	}
+	if err := cleanBackupGroup(errorBackups, "错误日志"); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+type backupFileInfo struct {
+	name    string
+	modTime time.Time
+}
+
+// cleanBackupGroup 清理一组备份文件
+func cleanBackupGroup(files []backupFileInfo, logType string) error {
+	if len(files) <= 3 {
+		return nil
+	}
+
+	// 按修改时间排序(从旧到新)
+	sort.Slice(files, func(i, j int) bool {
+		return files[i].modTime.Before(files[j].modTime)
+	})
+
+	// 保留最新的3个，删除其余的
+	for i := 0; i < len(files)-3; i++ {
+		if err := os.Remove(filepath.Join("./logs", files[i].name)); err != nil {
+			logrus.Warnf("无法删除旧的%s备份 %s: %v", logType, files[i].name, err)
+		}
+	}
+
+	return nil
 }
